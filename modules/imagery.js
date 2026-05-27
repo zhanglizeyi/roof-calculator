@@ -72,8 +72,24 @@ function latLonToTile(lat, lon, zoom) {
 }
 
 /**
+ * Convert tile coordinates to Bing Maps quadkey
+ * @private
+ */
+function getTileQuadKey(x, y, zoom) {
+    let quadKey = '';
+    for (let i = zoom; i > 0; i--) {
+        let digit = 0;
+        const mask = 1 << (i - 1);
+        if ((x & mask) !== 0) digit += 1;
+        if ((y & mask) !== 0) digit += 2;
+        quadKey += digit;
+    }
+    return quadKey;
+}
+
+/**
  * Fetch satellite image as canvas
- * Uses OpenStreetMap tiles (completely free, no API key needed, CORS-friendly)
+ * Tries multiple free tile providers with fallbacks
  * @param {number} lat - Latitude
  * @param {number} lon - Longitude
  * @param {number} width - Image width (pixels)
@@ -93,12 +109,108 @@ async function getSatelliteImage(lat, lon, width = 512, height = 512, zoom = 18)
         }
     }
 
+    // Try multiple providers in order
+    const providers = [
+        { name: "Bing", fn: () => createBingMapCanvas(lat, lon, zoom, width, height) },
+        { name: "USGS", fn: () => createUSGSCanvas(lat, lon, zoom, width, height) },
+        { name: "CartoDB", fn: () => createCartoDBCanvas(lat, lon, zoom, width, height) },
+        { name: "OSM", fn: () => createOSMTileCanvas(lat, lon, zoom, width, height) },
+    ];
+
+    for (const provider of providers) {
+        try {
+            console.log(`Trying satellite provider: ${provider.name}...`);
+            const canvas = await provider.fn();
+            console.log(`✅ ${provider.name} succeeded!`);
+            return canvas;
+        } catch (error) {
+            console.warn(`❌ ${provider.name} failed:`, error);
+            continue;
+        }
+    }
+
+    // All providers failed - show placeholder
+    console.warn("All satellite providers failed, showing placeholder");
+    return createPlaceholderCanvas(width, height);
+}
+
+/**
+ * Create canvas from Bing Maps satellite tiles
+ * High quality, good coverage
+ * @private
+ */
+async function createBingMapCanvas(lat, lon, zoom, width, height) {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+
     try {
-        // Use OpenStreetMap Stamen Satellite tiles (completely free, CORS-friendly)
-        return createOSMTileCanvas(lat, lon, zoom, width, height);
+        const [x, y] = latLonToTile(lat, lon, zoom);
+        
+        // Bing Maps tiles are CORS-friendly
+        // Format: http://ecn.dynamic.t7.tiles.virtualearth.net/comp/ch/{quadkey}
+        const quadKey = getTileQuadKey(x, y, zoom);
+        const tileUrl = `https://ecn.t0.tiles.virtualearth.net/tiles/a${quadKey}.jpeg`;
+        
+        console.log("Bing tile URL:", tileUrl);
+        const img = await loadImageFromUrl(tileUrl);
+        ctx.drawImage(img, 0, 0, width, height);
+        return canvas;
     } catch (error) {
-        console.warn("OSM tile fetch failed:", error);
-        return createPlaceholderCanvas(width, height);
+        throw new Error(`Bing Maps failed: ${error.message}`);
+    }
+}
+
+/**
+ * Create canvas from USGS satellite tiles
+ * Public domain, excellent coverage for US
+ * @private
+ */
+async function createUSGSCanvas(lat, lon, zoom, width, height) {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+
+    try {
+        const [x, y] = latLonToTile(lat, lon, zoom);
+        
+        // USGS Ortho tiles
+        const tileUrl = `https://basemap.nationalmap.gov/arcgis/rest/services/USGSOrth/MapServer/tile/${zoom}/${y}/${x}`;
+        
+        console.log("USGS tile URL:", tileUrl);
+        const img = await loadImageFromUrl(tileUrl);
+        ctx.drawImage(img, 0, 0, width, height);
+        return canvas;
+    } catch (error) {
+        throw new Error(`USGS failed: ${error.message}`);
+    }
+}
+
+/**
+ * Create canvas from CartoDB satellite tiles
+ * Good quality, free tier
+ * @private
+ */
+async function createCartoDBCanvas(lat, lon, zoom, width, height) {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+
+    try {
+        const [x, y] = latLonToTile(lat, lon, zoom);
+        
+        // CartoDB Positron tiles (or other variants)
+        const tileUrl = `https://tiles.stadiamaps.com/tiles/stamen_terrain/${zoom}/${x}/${y}.png`;
+        
+        console.log("CartoDB tile URL:", tileUrl);
+        const img = await loadImageFromUrl(tileUrl);
+        ctx.drawImage(img, 0, 0, width, height);
+        return canvas;
+    } catch (error) {
+        throw new Error(`CartoDB failed: ${error.message}`);
     }
 }
 
