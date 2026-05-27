@@ -166,15 +166,37 @@ const app = {
 
         // Display satellite image
         const satelliteImg = document.getElementById('satelliteImage');
-        if (analysis.satelliteImage) {
-            if (analysis.satelliteImage instanceof HTMLCanvasElement) {
-                // Canvas to image
-                satelliteImg.src = analysis.satelliteImage.toDataURL('image/png');
-            } else if (analysis.satelliteImage instanceof HTMLImageElement) {
-                satelliteImg.src = analysis.satelliteImage.src;
+        const imageContainer = document.querySelector('.satellite-image-container');
+        
+        try {
+            if (analysis.satelliteImage) {
+                if (analysis.satelliteImage instanceof HTMLCanvasElement) {
+                    // Canvas to data URL
+                    const dataUrl = analysis.satelliteImage.toDataURL('image/png');
+                    satelliteImg.src = dataUrl;
+                    satelliteImg.onload = () => {
+                        console.log("✅ Satellite image loaded successfully");
+                    };
+                    satelliteImg.onerror = () => {
+                        console.warn("Image failed to load, showing placeholder");
+                        showImagePlaceholder(satelliteImg);
+                    };
+                } else if (analysis.satelliteImage instanceof HTMLImageElement) {
+                    satelliteImg.src = analysis.satelliteImage.src;
+                    satelliteImg.onload = () => {
+                        console.log("✅ Satellite image loaded successfully");
+                    };
+                    satelliteImg.onerror = () => {
+                        console.warn("Image failed to load, showing placeholder");
+                        showImagePlaceholder(satelliteImg);
+                    };
+                }
+            } else {
+                showImagePlaceholder(satelliteImg);
             }
-        } else {
-            satelliteImg.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="400"%3E%3Crect fill="%23ddd" width="400" height="400"/%3E%3Ctext x="50%25" y="50%25" font-size="20" fill="%23999" text-anchor="middle" dy=".3em"%3EImage unavailable%3C/text%3E%3C/svg%3E';
+        } catch (error) {
+            console.error("Error displaying satellite image:", error);
+            showImagePlaceholder(satelliteImg);
         }
 
         // Summary
@@ -408,6 +430,44 @@ function formatCurrency(amount) {
         minimumFractionDigits: 0,
         maximumFractionDigits: 0
     }).format(amount);
+}
+
+// Show image placeholder
+function showImagePlaceholder(imgElement) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+    
+    // Blue gradient background (sky-like)
+    const gradient = ctx.createLinearGradient(0, 0, 512, 512);
+    gradient.addColorStop(0, '#87ceeb');
+    gradient.addColorStop(0.5, '#5a9dd9');
+    gradient.addColorStop(1, '#4a90e2');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 512, 512);
+    
+    // Add building/roof icon
+    ctx.fillStyle = '#d9534f';
+    ctx.fillRect(100, 250, 312, 150); // Main roof
+    
+    ctx.fillStyle = '#a94442';
+    ctx.beginPath();
+    ctx.moveTo(100, 250);
+    ctx.lineTo(256, 100);
+    ctx.lineTo(412, 250);
+    ctx.closePath();
+    ctx.fill(); // Roof peak
+    
+    // Text
+    ctx.fillStyle = 'white';
+    ctx.font = 'bold 20px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('Satellite Image', 256, 450);
+    ctx.font = '14px Arial';
+    ctx.fillText('(Unable to load live imagery)', 256, 475);
+    
+    imgElement.src = canvas.toDataURL('image/png');
 }
 
 // Initialize app on load

@@ -178,15 +178,26 @@ function getMapboxStaticUrl(lat, lon, zoom, width, height) {
 }
 
 /**
- * Load image from URL
+ * Load image from URL with timeout
  * @private
  */
 function loadImageFromUrl(url) {
     return new Promise((resolve, reject) => {
         const img = new Image();
         img.crossOrigin = "anonymous";
-        img.onload = () => resolve(img);
-        img.onerror = () => reject(new Error(`Failed to load image: ${url}`));
+        
+        const timeout = setTimeout(() => {
+            reject(new Error(`Image load timeout: ${url}`));
+        }, 5000); // 5 second timeout
+        
+        img.onload = () => {
+            clearTimeout(timeout);
+            resolve(img);
+        };
+        img.onerror = () => {
+            clearTimeout(timeout);
+            reject(new Error(`Failed to load image: ${url}`));
+        };
         img.src = url;
     });
 }
