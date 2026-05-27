@@ -1,11 +1,10 @@
 /**
  * Satellite Imagery Module
  * Fetches satellite images from free sources
- * Supports USGS, Google Earth, and OpenStreetMap
+ * Uses Google Static Maps (most reliable, free tier available)
  */
 
 const IMAGERY_CACHE_KEY = "roof_calc_imagery_cache";
-const MAPBOX_URL = "https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static";
 const GOOGLE_MAPS_URL = "https://maps.googleapis.com/maps/api/staticmap";
 
 // Tile providers
@@ -15,12 +14,6 @@ const TILE_PROVIDERS = {
         url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile",
         maxZoom: 19,
         attribution: "© Esri"
-    },
-    // OpenStreetMap Satellite
-    osm: {
-        url: "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
-        maxZoom: 19,
-        attribution: "© OpenStreetMap"
     }
 };
 
@@ -80,7 +73,7 @@ function latLonToTile(lat, lon, zoom) {
 
 /**
  * Fetch satellite image as canvas
- * Uses Esri/USGS free tiles (no API key needed)
+ * Uses Google Static Maps (free tier, most reliable, no API key for basic use)
  * @param {number} lat - Latitude
  * @param {number} lon - Longitude
  * @param {number} width - Image width (pixels)
@@ -93,15 +86,29 @@ async function getSatelliteImage(lat, lon, width = 512, height = 512, zoom = 18)
 
     // Check cache (24 hour TTL)
     if (cache[cacheKey] && Date.now() - cache[cacheKey].timestamp < 24 * 60 * 60 * 1000) {
-        return await loadImageFromUrl(cache[cacheKey].url);
+        try {
+            return await loadImageFromUrl(cache[cacheKey].url);
+        } catch (error) {
+            // Cache expired or failed, continue to fetch fresh
+        }
     }
 
     try {
-        // Use Esri World Imagery (free, no API key needed)
-        return createTileCanvas(lat, lon, zoom, width, height);
+        // Use Google Static Maps (free, no API key required for limited use)
+        const mapUrl = `${GOOGLE_MAPS_URL}?center=${lat},${lon}&zoom=${zoom}&size=${width}x${height}&maptype=satellite&scale=1`;
+        console.log("Fetching from Google Maps:", mapUrl);
+        
+        const img = await loadImageFromUrl(mapUrl);
+        setImageryCache(cacheKey, mapUrl);
+        return img;
     } catch (error) {
-        console.warn("Satellite fetch failed:", error);
-        return createPlaceholderCanvas(width, height);
+        console.warn("Google Maps fetch failed, trying Esri tiles:", error);
+        try {
+            return createTileCanvas(lat, lon, zoom, width, height);
+        } catch (esriError) {
+            console.warn("Esri tiles also failed:", esriError);
+            return createPlaceholderCanvas(width, height);
+        }
     }
 }
 
