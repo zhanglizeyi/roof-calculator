@@ -279,6 +279,37 @@ body {
     box-shadow: var(--shadow-lg);
 }
 
+/* Image Card */
+.image-card {
+    border: 2px solid var(--neutral-300);
+}
+
+.satellite-image-container {
+    background: var(--neutral-100);
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.satellite-image {
+    width: 100%;
+    max-width: 600px;
+    height: auto;
+    max-height: 500px;
+    object-fit: cover;
+    border-radius: var(--border-radius);
+    margin-bottom: var(--spacing-lg);
+}
+
+.image-source-text {
+    font-size: 0.875rem;
+    color: var(--neutral-600);
+    margin-bottom: var(--spacing-md);
+    font-style: italic;
+}
+
 .summary-card h2 {
     margin-bottom: var(--spacing-lg);
 }

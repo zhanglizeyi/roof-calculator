@@ -139,6 +139,7 @@ const app = {
                 address,
                 geocoded,
                 footprint,
+                satelliteImage: satImage,
                 pitch,
                 material,
                 obstructions,
@@ -162,6 +163,19 @@ const app = {
     displayResults() {
         const analysis = this.currentAnalysis;
         const results = document.getElementById('resultsSection');
+
+        // Display satellite image
+        const satelliteImg = document.getElementById('satelliteImage');
+        if (analysis.satelliteImage) {
+            if (analysis.satelliteImage instanceof HTMLCanvasElement) {
+                // Canvas to image
+                satelliteImg.src = analysis.satelliteImage.toDataURL('image/png');
+            } else if (analysis.satelliteImage instanceof HTMLImageElement) {
+                satelliteImg.src = analysis.satelliteImage.src;
+            }
+        } else {
+            satelliteImg.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="400"%3E%3Crect fill="%23ddd" width="400" height="400"/%3E%3Ctext x="50%25" y="50%25" font-size="20" fill="%23999" text-anchor="middle" dy=".3em"%3EImage unavailable%3C/text%3E%3C/svg%3E';
+        }
 
         // Summary
         document.getElementById('totalRoofArea').textContent = 
