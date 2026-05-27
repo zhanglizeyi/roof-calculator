@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🏠 Roof Calculator - Free Roofing Analysis</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>🏠 Roof Calculator</h1>
+            <p class="subtitle">Free, instant roof analysis for any address</p>
+            <div class="beta-badge">INTERNAL TESTING (Beta v0.1)</div>
+        </header>
+
+        <!-- Input Section -->
+        <section class="input-section">
+            <div class="form-group">
+                <label for="addressInput">Enter Address:</label>
+                <input 
+                    type="text" 
+                    id="addressInput" 
+                    placeholder="e.g., 1234 Oak Street, Los Gatos, CA"
+                    autocomplete="off"
+                >
+                <div id="suggestions" class="suggestions-list"></div>
+            </div>
+
+            <button id="analyzeBtn" class="btn btn-primary" disabled>
+                🔍 Analyze Roof
+            </button>
+
+            <div id="loadingSpinner" class="loading hidden">
+                <div class="spinner"></div>
+                <p>Analyzing roof... (this may take 10-30 seconds)</p>
+            </div>
+        </section>
+
+        <!-- Error Messages -->
+        <div id="errorMessage" class="error-message hidden"></div>
+
+        <!-- Results Section -->
+        <section id="resultsSection" class="results-section hidden">
+            <!-- Quick Summary -->
+            <div class="summary-card">
+                <h2>📊 Quick Summary</h2>
+                <div class="summary-grid">
+                    <div class="summary-item">
+                        <span class="label">Total Roof Area</span>
+                        <span id="totalRoofArea" class="value">— sq ft</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="label">Roof Pitch</span>
+                        <span id="roofPitch" class="value">— </span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="label">Material</span>
+                        <span id="roofMaterial" class="value">—</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="label">Estimated Cost</span>
+                        <span id="estimatedCost" class="value">—</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Roof Dimensions -->
+            <div class="card">
+                <h3>📐 Roof Dimensions</h3>
+                <div class="details-grid">
+                    <div class="detail-item">
+                        <span class="label">Building Footprint</span>
+                        <span id="footprintSqft" class="value">— sq ft</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="label">Roof Pitch</span>
+                        <span id="pitchRatio" class="value">—</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="label">Pitch Multiplier</span>
+                        <span id="pitchMultiplier" class="value">—</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="label">Total Roof Area</span>
+                        <span id="roofAreaDetail" class="value">— sq ft</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Roof Material -->
+            <div class="card">
+                <h3>🎨 Roof Material</h3>
+                <div class="material-info">
+                    <div class="material-primary">
+                        <span id="materialName" class="material-name">—</span>
+                        <span id="materialConfidence" class="confidence-badge">—%</span>
+                    </div>
+                    <p id="materialDescription" class="material-desc">—</p>
+                    <div class="material-stats">
+                        <div class="stat">
+                            <span class="stat-label">Lifespan</span>
+                            <span id="materialLifespan" class="stat-value">—</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-label">Cost/sq ft</span>
+                            <span id="materialCostPerSqft" class="stat-value">—</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Obstructions & Features -->
+            <div class="card">
+                <h3>🔧 Obstructions & Features</h3>
+                <div id="obstructionsContainer" class="obstructions-grid">
+                    <!-- Dynamically populated -->
+                </div>
+            </div>
+
+            <!-- Cost Breakdown -->
+            <div class="card cost-card">
+                <h3>💰 Cost Estimate</h3>
+                <div class="cost-breakdown">
+                    <div class="cost-item">
+                        <span class="cost-label">Material Cost</span>
+                        <span id="costMaterial" class="cost-value">—</span>
+                    </div>
+                    <div class="cost-item">
+                        <span class="cost-label">Obstruction Additions</span>
+                        <span id="costObstructions" class="cost-value">—</span>
+                    </div>
+                    <div class="cost-item">
+                        <span class="cost-label">Labor (estimated)</span>
+                        <span id="costLabor" class="cost-value">—</span>
+                    </div>
+                    <div class="cost-item">
+                        <span class="cost-label">Contingency (10%)</span>
+                        <span id="costContingency" class="cost-value">—</span>
+                    </div>
+                    <div class="cost-item total">
+                        <span class="cost-label">Total Replacement</span>
+                        <span id="costTotal" class="cost-value">—</span>
+                    </div>
+                </div>
+                <p class="cost-note">💡 Prices are estimates based on 2024-2025 regional averages</p>
+            </div>
+
+            <!-- Project Specs -->
+            <div class="card">
+                <h3>📋 Project Specs</h3>
+                <div class="specs-grid">
+                    <div class="spec-item">
+                        <span class="label">Recommended Crew</span>
+                        <span id="crewSize" class="value">—</span>
+                    </div>
+                    <div class="spec-item">
+                        <span class="label">Estimated Timeline</span>
+                        <span id="timeline" class="value">—</span>
+                    </div>
+                    <div class="spec-item">
+                        <span class="label">Total Labor Hours</span>
+                        <span id="laborHours" class="value">—</span>
+                    </div>
+                    <div class="spec-item">
+                        <span class="label">Material Waste Factor</span>
+                        <span id="wasteFactor" class="value">—</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Data Quality -->
+            <div class="card info-card">
+                <h3>ℹ️ Data Quality & Sources</h3>
+                <div id="dataQuality" class="data-quality">
+                    <!-- Dynamically populated -->
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="actions">
+                <button id="exportBtn" class="btn btn-secondary">📥 Export JSON</button>
+                <button id="newSearchBtn" class="btn btn-primary">🔄 New Search</button>
+            </div>
+        </section>
+
+        <!-- Info Section (for internal testing) -->
+        <section class="info-section">
+            <h2>ℹ️ Internal Testing Info</h2>
+            <div class="info-box">
+                <h3>📌 What to Test</h3>
+                <ul>
+                    <li>✅ Address autocomplete (try "Los Gatos", "Saratoga", "Los Altos")</li>
+                    <li>✅ Roof area calculations</li>
+                    <li>✅ Material detection from satellite imagery</li>
+                    <li>✅ Pitch detection and multipliers</li>
+                    <li>✅ Cost estimation accuracy</li>
+                    <li>✅ Feature detection (chimneys, vents, solar, etc.)</li>
+                </ul>
+            </div>
+            <div class="info-box">
+                <h3>🐛 Known Limitations (Alpha)</h3>
+                <ul>
+                    <li>⚠️ Object detection may have low accuracy (needs ML training data)</li>
+                    <li>⚠️ Pitch detection uses basic edge detection (can be improved)</li>
+                    <li>⚠️ Cost estimates are hardcoded averages (needs regional pricing API)</li>
+                    <li>⚠️ Satellite imagery resolution varies by location</li>
+                </ul>
+            </div>
+            <div class="info-box">
+                <h3>🛠️ Testing Checklist</h3>
+                <textarea id="testingNotes" placeholder="Add your testing notes here..." class="testing-textarea"></textarea>
+                <button id="saveNotesBtn" class="btn btn-small">💾 Save Notes</button>
+            </div>
+        </section>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.10.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3"></script>
+    
+    <script src="modules/geocode.js"></script>
+    <script src="modules/imagery.js"></script>
+    <script src="modules/footprint.js"></script>
+    <script src="modules/pitch.js"></script>
+    <script src="modules/material.js"></script>
+    <script src="modules/objects.js"></script>
+    <script src="modules/costs.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
