@@ -80,7 +80,7 @@ function latLonToTile(lat, lon, zoom) {
 
 /**
  * Fetch satellite image as canvas
- * Uses Mapbox Static Images API (free tier) or falls back to tiles
+ * Uses Esri/USGS free tiles (no API key needed)
  * @param {number} lat - Latitude
  * @param {number} lon - Longitude
  * @param {number} width - Image width (pixels)
@@ -97,23 +97,17 @@ async function getSatelliteImage(lat, lon, width = 512, height = 512, zoom = 18)
     }
 
     try {
-        // Try Mapbox Static Images (free tier: 600 requests/month)
-        // For testing, we'll use a fallback approach
-        const imagUrl = getMapboxStaticUrl(lat, lon, zoom, width, height);
-        
-        const img = await loadImageFromUrl(imagUrl);
-        setImageryCache(cacheKey, imagUrl);
-        return img;
-
-    } catch (error) {
-        console.warn("Mapbox failed, using fallback tile approach:", error);
+        // Use Esri World Imagery (free, no API key needed)
         return createTileCanvas(lat, lon, zoom, width, height);
+    } catch (error) {
+        console.warn("Satellite fetch failed:", error);
+        return createPlaceholderCanvas(width, height);
     }
 }
 
 /**
  * Create a canvas from satellite tiles
- * Fetches multiple tiles and stitches them together
+ * Fetches Esri World Imagery tiles (free, no API key)
  * @private
  */
 async function createTileCanvas(lat, lon, zoom, width, height) {
@@ -123,22 +117,45 @@ async function createTileCanvas(lat, lon, zoom, width, height) {
     const ctx = canvas.getContext('2d');
 
     try {
-        // For testing: fetch a single tile
+        // Fetch Esri tile (free, no API key needed)
         const tileUrl = getSatelliteTile(lat, lon, zoom, 'esri');
+        console.log("Fetching satellite tile:", tileUrl);
+        
         const img = await loadImageFromUrl(tileUrl);
         ctx.drawImage(img, 0, 0, width, height);
         return canvas;
     } catch (error) {
-        // Fallback: generate placeholder
         console.warn("Could not fetch satellite tile:", error);
-        ctx.fillStyle = '#cccccc';
-        ctx.fillRect(0, 0, width, height);
-        ctx.fillStyle = '#666666';
-        ctx.font = '16px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText('No imagery available', width / 2, height / 2);
-        return canvas;
+        return createPlaceholderCanvas(width, height);
     }
+}
+
+/**
+ * Create placeholder canvas when imagery unavailable
+ * @private
+ */
+function createPlaceholderCanvas(width, height) {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    
+    // Create a gradient placeholder
+    const gradient = ctx.createLinearGradient(0, 0, width, height);
+    gradient.addColorStop(0, '#87ceeb');
+    gradient.addColorStop(1, '#4a90e2');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+    
+    // Add text
+    ctx.fillStyle = 'white';
+    ctx.font = 'bold 18px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('Satellite Imagery', width / 2, height / 2 - 20);
+    ctx.font = '14px Arial';
+    ctx.fillText('(Not available for this location)', width / 2, height / 2 + 20);
+    
+    return canvas;
 }
 
 /**

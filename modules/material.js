@@ -242,62 +242,45 @@ function calculateDominantHue(hueArray) {
 
 /**
  * Score image features against each material
+ * SIMPLIFIED: Default to asphalt (most common), only detect special cases
  * @private
  */
 function scoreAgainstMaterials(features) {
     const scores = {};
-
-    Object.entries(MATERIAL_DATABASE).forEach(([materialKey, material]) => {
-        let score = 0;
-
-        // Score based on darkness (ASPHALT is most common - prioritize it)
-        if (material.name === "Asphalt Shingles") {
-            // Dark and not too reflective = high confidence asphalt
-            if (features.isDark && !features.isLight) score += 0.5;
-            if (features.avgReflectance < 0.35) score += 0.3;
-            if (features.avgSaturation < 0.25) score += 0.2;
-            // Asphalt is most common residential material - give baseline
-            score += 0.3; // baseline boost for most common
-        }
-
-        // Score based on reflectance (metal - only high reflectance)
-        if (material.name === "Metal Roofing") {
-            // Metal MUST be very reflective to be metal
-            if (features.avgReflectance > 0.7) score += 0.8; // Very high threshold
-            else if (features.avgReflectance > 0.6) score += 0.2; // Moderate reflectance
-            if (features.avgSaturation < 0.1) score += 0.2;
-        }
-
-        // Score based on orange hue (clay)
-        if (material.name === "Clay Tile") {
-            const hue = features.dominantHue;
-            if (hue > 0.05 && hue < 0.15) score += 0.8; // Strong orange signal
-            if (features.avgSaturation > 0.3) score += 0.2;
-        }
-
-        // Score based on whiteness (membrane)
-        if (material.name === "Flat Membrane (TPO/EPDM)") {
-            if (features.isLight) score += 0.8;
-            if (features.avgReflectance > 0.6) score += 0.2;
-        }
-
-        // Score based on darkness and slate characteristics
-        if (material.name === "Slate") {
-            if (features.isDark && features.avgReflectance < 0.25) score += 0.6;
-        }
-
-        // Wood shakes - darker with some texture hints
-        if (material.name === "Wood Shingles/Shakes") {
-            if (features.isDark && features.avgReflectance < 0.4) score += 0.3;
-        }
-
-        // Default score if features don't match strongly
-        if (score === 0) score = 0.1;
-
-        scores[materialKey] = Math.min(1.0, score);
+    
+    // Initialize all to baseline
+    Object.keys(MATERIAL_DATABASE).forEach(key => {
+        scores[key] = 0.1;
     });
 
-    // Normalize scores
+    // Check for VERY distinctive features first
+    const avgBrightness = features.avgBrightness;
+    const avgReflectance = features.avgReflectance;
+    const isLight = avgBrightness > 0.65;
+    const isDark = avgBrightness < 0.45;
+
+    // METAL: Only if EXTREMELY reflective (>0.75)
+    if (avgReflectance > 0.75) {
+        scores.metal = 0.9;
+    } 
+    // CLAY TILE: Only if distinctly orange hue
+    else if (features.dominantHue > 0.06 && features.dominantHue < 0.14) {
+        scores.clay = 0.9;
+    }
+    // MEMBRANE/WHITE: Only if very light and reflective
+    else if (isLight && avgReflectance > 0.65) {
+        scores.membrane = 0.85;
+    }
+    // SLATE: Very dark and low reflectance
+    else if (isDark && avgReflectance < 0.25) {
+        scores.slate = 0.7;
+    }
+    // DEFAULT: Asphalt (most common for residential)
+    else {
+        scores.asphalt = 0.85;
+    }
+
+    // Normalize
     const total = Object.values(scores).reduce((a, b) => a + b, 0);
     Object.keys(scores).forEach(key => {
         scores[key] = scores[key] / total;
