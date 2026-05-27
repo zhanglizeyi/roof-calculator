@@ -102,7 +102,13 @@
             <div class="card">
                 <h3>🎨 Roof Material</h3>
                 <div class="material-info">
-                    <div class="material-primary">
+                    <div class="material-selector">
+                        <label for="materialSelect">Select Material (Detection may not be 100% accurate):</label>
+                        <select id="materialSelect" class="material-dropdown">
+                            <option value="">Loading...</option>
+                        </select>
+                    </div>
+                    <div class="material-primary" style="margin-top: 20px;">
                         <span id="materialName" class="material-name">—</span>
                         <span id="materialConfidence" class="confidence-badge">—%</span>
                     </div>

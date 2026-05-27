@@ -3,6 +3,17 @@
  * Coordinates all modules and handles UI
  */
 
+// Material database for dropdown
+const MATERIAL_DATABASE = {
+    asphalt: { name: "Asphalt Shingles", lifespan: "15-25 years", costPerSqft: { avg: 4.50 } },
+    metal: { name: "Metal Roofing", lifespan: "40-70 years", costPerSqft: { avg: 9.75 } },
+    clay: { name: "Clay Tile", lifespan: "50-100 years", costPerSqft: { avg: 14.00 } },
+    concrete: { name: "Concrete Tile", lifespan: "30-50 years", costPerSqft: { avg: 8.00 } },
+    membrane: { name: "Flat Membrane (TPO/EPDM)", lifespan: "20-30 years", costPerSqft: { avg: 6.25 } },
+    wood: { name: "Wood Shingles/Shakes", lifespan: "20-40 years", costPerSqft: { avg: 11.50 } },
+    slate: { name: "Slate", lifespan: "50-200+ years", costPerSqft: { avg: 20.00 } }
+};
+
 const app = {
     currentAddress: null,
     currentAnalysis: null,
@@ -216,14 +227,45 @@ const app = {
         document.getElementById('roofAreaDetail').textContent = 
             `${analysis.roofAreaSqFt.toLocaleString()} sq ft`;
 
-        // Material
-        document.getElementById('materialName').textContent = analysis.material.name;
-        document.getElementById('materialConfidence').textContent = 
-            `${Math.round(analysis.material.confidence * 100)}%`;
-        document.getElementById('materialLifespan').textContent = 
-            analysis.material.lifespan;
-        document.getElementById('materialCostPerSqft').textContent = 
-            formatCurrency(analysis.material.costPerSqft.avg);
+        // Material - Populate dropdown with top options
+        const materialSelect = document.getElementById('materialSelect');
+        materialSelect.innerHTML = '';
+        
+        // Add primary material
+        const primaryOption = document.createElement('option');
+        primaryOption.value = analysis.material.primary;
+        primaryOption.textContent = `${analysis.material.name} (Detected - ${Math.round(analysis.material.confidence * 100)}%)`;
+        materialSelect.appendChild(primaryOption);
+        
+        // Add alternative materials
+        if (analysis.material.alternatives && analysis.material.alternatives.length > 0) {
+            const altSection = document.createElement('optgroup');
+            altSection.label = '-- Other Options --';
+            
+            // Add common materials as alternatives
+            const commonMaterials = ['asphalt', 'metal', 'clay', 'membrane', 'concrete', 'wood', 'slate'];
+            commonMaterials.forEach(matKey => {
+                if (matKey !== analysis.material.primary && MATERIAL_DATABASE[matKey]) {
+                    const option = document.createElement('option');
+                    option.value = matKey;
+                    const mat = MATERIAL_DATABASE[matKey];
+                    option.textContent = mat.name;
+                    altSection.appendChild(option);
+                }
+            });
+            materialSelect.appendChild(altSection);
+        }
+        
+        // Set primary as selected
+        materialSelect.value = analysis.material.primary;
+        
+        // Add change event listener
+        materialSelect.addEventListener('change', (e) => {
+            this.updateMaterialDisplay(e.target.value, analysis);
+        });
+        
+        // Display material info
+        this.updateMaterialDisplay(analysis.material.primary, analysis);
 
         // Obstructions
         this.displayObstructions(analysis.obstructions);
@@ -419,6 +461,41 @@ const app = {
     // Logging
     log(message) {
         console.log(`[Roof Calc] ${message}`);
+    },
+
+    // Update material display when user selects different material
+    updateMaterialDisplay(materialKey, originalAnalysis) {
+        const material = MATERIAL_DATABASE[materialKey];
+        if (!material) return;
+
+        // Update displayed material
+        document.getElementById('materialName').textContent = material.name;
+        document.getElementById('materialConfidence').textContent = 
+            `${Math.round((originalAnalysis.material.confidence || 0.5) * 100)}%`;
+        document.getElementById('materialLifespan').textContent = material.lifespan;
+        document.getElementById('materialCostPerSqft').textContent = 
+            formatCurrency(material.costPerSqft.avg);
+
+        // Recalculate costs with new material
+        const newCosts = calculateRoofingCost({
+            roofAreaSqFt: originalAnalysis.roofAreaSqFt,
+            material: {
+                ...material,
+                primary: materialKey,
+                confidence: originalAnalysis.material.confidence
+            },
+            pitch: originalAnalysis.pitch,
+            obstructions: originalAnalysis.obstructions
+        });
+
+        // Update cost display
+        const costs = newCosts.breakdown;
+        document.getElementById('costMaterial').textContent = 
+            formatCurrency(costs.material);
+        document.getElementById('costTotal').textContent = 
+            formatCurrency(costs.total);
+
+        this.log(`Material changed to: ${material.name}`);
     }
 };
 
