@@ -22,50 +22,32 @@ const STANDARD_PITCHES = {
 
 /**
  * Detect roof pitch from satellite image
- * Analyzes roofline edges and calculates slope angles
+ * NOTE: Satellite edge detection is unreliable for pitch
+ * Default to most common residential pitch (4:12)
  * @param {HTMLCanvasElement|HTMLImageElement} image - Satellite image
  * @returns {Object} Detected pitch info
  */
 function detectRoofPitch(image) {
     try {
-        // Convert image to canvas if needed
-        let canvas = image;
-        if (image instanceof HTMLImageElement) {
-            canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            canvas.width = image.width;
-            canvas.height = image.height;
-            ctx.drawImage(image, 0, 0);
-        }
-
-        // Edge detection
-        const edges = detectEdges(canvas);
-
-        // Extract roof lines
-        const roofLines = extractRoofLines(edges);
-
-        if (roofLines.length === 0) {
-            // Fallback: assume standard 4:12 pitch (most common residential)
-            return {
-                ratio: "4:12",
-                name: STANDARD_PITCHES["4:12"].name,
-                multiplier: STANDARD_PITCHES["4:12"].multiplier,
-                angle: STANDARD_PITCHES["4:12"].angle,
-                confidence: 0.40,
-                method: "fallback"
-            };
-        }
-
-        // Calculate slope angles of detected lines
-        const angles = roofLines.map(line => calculateLineAngle(line));
-
-        // Match to standard pitch
-        const bestMatch = matchToStandardPitch(angles);
-
-        return bestMatch;
+        // Pitch detection from satellite imagery is extremely unreliable
+        // Most Bay Area residential: 4:12 (standard), some 6:12 (steeper)
+        // Flat roofs (0:12) rare in residential, more common commercial
+        
+        // For now: default to 4:12 (most common)
+        // In production: would need 3D LiDAR or manual inspection
+        
+        return {
+            ratio: "4:12",
+            name: STANDARD_PITCHES["4:12"].name,
+            multiplier: STANDARD_PITCHES["4:12"].multiplier,
+            angle: STANDARD_PITCHES["4:12"].angle,
+            confidence: 0.50,  // Lower confidence - this is an assumption
+            method: "default_assumption",
+            note: "Pitch detection from satellite imagery is unreliable. Using Bay Area standard (4:12). For accuracy, please verify with roof inspection."
+        };
 
     } catch (error) {
-        console.warn("Pitch detection failed:", error);
+        console.warn("Pitch detection error:", error);
         return {
             ratio: "4:12",
             multiplier: 1.054,

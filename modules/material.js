@@ -242,45 +242,47 @@ function calculateDominantHue(hueArray) {
 
 /**
  * Score image features against each material
- * SIMPLIFIED: Default to asphalt (most common), only detect special cases
+ * CONSERVATIVE: Satellite imagery is too noisy for accurate detection
+ * Default to asphalt (90% of Bay Area residential roofs)
  * @private
  */
 function scoreAgainstMaterials(features) {
     const scores = {};
     
-    // Initialize all to baseline
+    // Initialize all materials with baseline
     Object.keys(MATERIAL_DATABASE).forEach(key => {
-        scores[key] = 0.1;
+        scores[key] = 0.05;
     });
 
-    // Check for VERY distinctive features first
+    // Material detection from satellite imagery is inherently unreliable
+    // Best case: 70% accuracy. Worst case: complete misidentification.
+    // Strategy: Only identify VERY distinctive materials, default to asphalt
+    
     const avgBrightness = features.avgBrightness;
     const avgReflectance = features.avgReflectance;
-    const isLight = avgBrightness > 0.65;
-    const isDark = avgBrightness < 0.45;
+    const isLight = avgBrightness > 0.70;  // Very bright
+    const isVeryDark = avgBrightness < 0.35;  // Very dark
 
-    // METAL: Only if EXTREMELY reflective (>0.75)
-    if (avgReflectance > 0.75) {
-        scores.metal = 0.9;
+    // ONLY detect if EXTREMELY distinctive
+    
+    // WHITE MEMBRANE: Must be very light AND reflective
+    if (isLight && avgReflectance > 0.70) {
+        scores.membrane = 0.95;
     } 
-    // CLAY TILE: Only if distinctly orange hue
-    else if (features.dominantHue > 0.06 && features.dominantHue < 0.14) {
-        scores.clay = 0.9;
-    }
-    // MEMBRANE/WHITE: Only if very light and reflective
-    else if (isLight && avgReflectance > 0.65) {
-        scores.membrane = 0.85;
+    // CLAY TILE: Very strong orange hue signal
+    else if (features.dominantHue > 0.08 && features.dominantHue < 0.12 && features.avgSaturation > 0.4) {
+        scores.clay = 0.90;
     }
     // SLATE: Very dark and low reflectance
-    else if (isDark && avgReflectance < 0.25) {
-        scores.slate = 0.7;
+    else if (isVeryDark && avgReflectance < 0.20) {
+        scores.slate = 0.85;
     }
-    // DEFAULT: Asphalt (most common for residential)
+    // DEFAULT: ASPHALT (most common - ~90% of Bay Area residential)
     else {
         scores.asphalt = 0.85;
     }
 
-    // Normalize
+    // Normalize to probabilities
     const total = Object.values(scores).reduce((a, b) => a + b, 0);
     Object.keys(scores).forEach(key => {
         scores[key] = scores[key] / total;

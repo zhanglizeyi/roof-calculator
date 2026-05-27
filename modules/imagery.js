@@ -360,16 +360,17 @@ function loadImageFromUrl(url) {
         img.crossOrigin = "anonymous";
         
         const timeout = setTimeout(() => {
-            reject(new Error(`Image load timeout: ${url}`));
-        }, 5000); // 5 second timeout
+            reject(new Error(`Image load timeout (5s): ${url}`));
+        }, 8000); // 8 second timeout (more generous)
         
         img.onload = () => {
             clearTimeout(timeout);
+            console.log("✅ Image loaded successfully:", url);
             resolve(img);
         };
-        img.onerror = () => {
+        img.onerror = (error) => {
             clearTimeout(timeout);
-            reject(new Error(`Failed to load image: ${url}`));
+            reject(new Error(`Failed to load image: ${url} - ${error}`));
         };
         img.src = url;
     });
