@@ -250,39 +250,49 @@ function scoreAgainstMaterials(features) {
     Object.entries(MATERIAL_DATABASE).forEach(([materialKey, material]) => {
         let score = 0;
 
-        // Score based on darkness
+        // Score based on darkness (ASPHALT is most common - prioritize it)
         if (material.name === "Asphalt Shingles") {
-            if (features.isDark && !features.isLight) score += 0.4;
-            if (features.avgReflectance < 0.3) score += 0.3;
-            if (features.avgSaturation < 0.2) score += 0.3;
+            // Dark and not too reflective = high confidence asphalt
+            if (features.isDark && !features.isLight) score += 0.5;
+            if (features.avgReflectance < 0.35) score += 0.3;
+            if (features.avgSaturation < 0.25) score += 0.2;
+            // Asphalt is most common residential material - give baseline
+            score += 0.3; // baseline boost for most common
         }
 
-        // Score based on reflectance (metal)
+        // Score based on reflectance (metal - only high reflectance)
         if (material.name === "Metal Roofing") {
-            if (features.avgReflectance > 0.6) score += 0.6;
-            if (features.avgSaturation < 0.15) score += 0.4;
+            // Metal MUST be very reflective to be metal
+            if (features.avgReflectance > 0.7) score += 0.8; // Very high threshold
+            else if (features.avgReflectance > 0.6) score += 0.2; // Moderate reflectance
+            if (features.avgSaturation < 0.1) score += 0.2;
         }
 
         // Score based on orange hue (clay)
         if (material.name === "Clay Tile") {
             const hue = features.dominantHue;
-            if (hue > 0.05 && hue < 0.15) score += 0.7; // Orange range
-            if (features.avgSaturation > 0.4) score += 0.3;
+            if (hue > 0.05 && hue < 0.15) score += 0.8; // Strong orange signal
+            if (features.avgSaturation > 0.3) score += 0.2;
         }
 
         // Score based on whiteness (membrane)
         if (material.name === "Flat Membrane (TPO/EPDM)") {
-            if (features.isLight) score += 0.7;
-            if (features.avgReflectance > 0.5) score += 0.3;
+            if (features.isLight) score += 0.8;
+            if (features.avgReflectance > 0.6) score += 0.2;
         }
 
         // Score based on darkness and slate characteristics
         if (material.name === "Slate") {
-            if (features.isDark && features.avgReflectance < 0.3) score += 0.5;
+            if (features.isDark && features.avgReflectance < 0.25) score += 0.6;
+        }
+
+        // Wood shakes - darker with some texture hints
+        if (material.name === "Wood Shingles/Shakes") {
+            if (features.isDark && features.avgReflectance < 0.4) score += 0.3;
         }
 
         // Default score if features don't match strongly
-        if (score === 0) score = 0.2;
+        if (score === 0) score = 0.1;
 
         scores[materialKey] = Math.min(1.0, score);
     });
