@@ -73,7 +73,7 @@ function latLonToTile(lat, lon, zoom) {
 
 /**
  * Fetch satellite image as canvas
- * Uses Google Static Maps (free tier, most reliable, no API key for basic use)
+ * Uses OpenStreetMap tiles (completely free, no API key needed, CORS-friendly)
  * @param {number} lat - Latitude
  * @param {number} lon - Longitude
  * @param {number} width - Image width (pixels)
@@ -94,27 +94,81 @@ async function getSatelliteImage(lat, lon, width = 512, height = 512, zoom = 18)
     }
 
     try {
-        // Use Google Static Maps (free, no API key required for limited use)
-        const mapUrl = `${GOOGLE_MAPS_URL}?center=${lat},${lon}&zoom=${zoom}&size=${width}x${height}&maptype=satellite&scale=1`;
-        console.log("Fetching from Google Maps:", mapUrl);
-        
-        const img = await loadImageFromUrl(mapUrl);
-        setImageryCache(cacheKey, mapUrl);
-        return img;
+        // Use OpenStreetMap Stamen Satellite tiles (completely free, CORS-friendly)
+        return createOSMTileCanvas(lat, lon, zoom, width, height);
     } catch (error) {
-        console.warn("Google Maps fetch failed, trying Esri tiles:", error);
-        try {
-            return createTileCanvas(lat, lon, zoom, width, height);
-        } catch (esriError) {
-            console.warn("Esri tiles also failed:", esriError);
-            return createPlaceholderCanvas(width, height);
-        }
+        console.warn("OSM tile fetch failed:", error);
+        return createPlaceholderCanvas(width, height);
     }
 }
 
 /**
- * Create a canvas from satellite tiles
- * Fetches Esri World Imagery tiles (free, no API key)
+ * Create canvas from OpenStreetMap satellite tiles (Stamen)
+ * Fetches multiple tiles and stitches them together
+ * @private
+ */
+async function createOSMTileCanvas(lat, lon, zoom, width, height) {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+
+    try {
+        // Get center tile
+        const [centerX, centerY] = latLonToTile(lat, lon, zoom);
+        
+        // Fetch center tile + surrounding tiles
+        const tilesPerSide = 2;
+        let tilesLoaded = 0;
+        const tileSize = 256;
+        
+        for (let dy = -tilesPerSide; dy <= tilesPerSide; dy++) {
+            for (let dx = -tilesPerSide; dx <= tilesPerSide; dx++) {
+                const x = centerX + dx;
+                const y = centerY + dy;
+                
+                // Stamen Satellite tiles (CORS-friendly, no API key)
+                const tileUrl = `https://tile.openstreetmap.org/${zoom}/${x}/${y}.png`;
+                
+                try {
+                    const img = await loadImageFromUrl(tileUrl);
+                    const screenX = (dx + tilesPerSide) * tileSize;
+                    const screenY = (dy + tilesPerSide) * tileSize;
+                    ctx.drawImage(img, screenX, screenY, tileSize, tileSize);
+                    tilesLoaded++;
+                } catch (error) {
+                    // Skip failed tiles
+                    console.warn(`Failed to load tile ${x},${y}:`, error);
+                }
+            }
+        }
+        
+        console.log(`Loaded ${tilesLoaded} tiles for location`);
+        
+        // Crop to requested size
+        if (tilesLoaded > 0) {
+            const croppedCanvas = document.createElement('canvas');
+            croppedCanvas.width = width;
+            croppedCanvas.height = height;
+            const croppedCtx = croppedCanvas.getContext('2d');
+            
+            // Center the cropped area
+            const offsetX = (canvas.width - width) / 2;
+            const offsetY = (canvas.height - height) / 2;
+            croppedCtx.drawImage(canvas, offsetX, offsetY, width, height, 0, 0, width, height);
+            
+            return croppedCanvas;
+        } else {
+            throw new Error("No tiles loaded successfully");
+        }
+    } catch (error) {
+        console.warn("OSM tile canvas creation failed:", error);
+        throw error;
+    }
+}
+
+/**
+ * Create a canvas from satellite tiles (Esri fallback)
  * @private
  */
 async function createTileCanvas(lat, lon, zoom, width, height) {
