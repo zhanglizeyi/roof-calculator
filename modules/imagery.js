@@ -88,220 +88,85 @@ function getTileQuadKey(x, y, zoom) {
 }
 
 /**
- * Fetch satellite image as canvas
+ * Fetch satellite image
  * Tries multiple free tile providers with fallbacks
  * @param {number} lat - Latitude
  * @param {number} lon - Longitude
  * @param {number} width - Image width (pixels)
  * @param {number} height - Image height (pixels)
- * @returns {Promise<HTMLCanvasElement|HTMLImageElement>} Satellite image
+ * @returns {Promise<HTMLImageElement|HTMLCanvasElement>} Satellite image
  */
 async function getSatelliteImage(lat, lon, width = 512, height = 512, zoom = 18) {
-    const cacheKey = `${lat}_${lon}_${zoom}_${width}x${height}`;
+    const cacheKey = `${lat}_${lon}_${zoom}`;
     const cache = getImageryCache();
 
     // Check cache (24 hour TTL)
     if (cache[cacheKey] && Date.now() - cache[cacheKey].timestamp < 24 * 60 * 60 * 1000) {
         try {
-            return await loadImageFromUrl(cache[cacheKey].url);
+            const img = await loadImageFromUrl(cache[cacheKey].url);
+            console.log("✅ Loaded from cache:", cache[cacheKey].url);
+            return img;
         } catch (error) {
-            // Cache expired or failed, continue to fetch fresh
+            console.warn("Cache entry failed, fetching fresh");
         }
     }
 
-    // Try multiple providers in order
+    // Try providers in order - return first working one
     const providers = [
-        { name: "Bing", fn: () => createBingMapCanvas(lat, lon, zoom, width, height) },
-        { name: "USGS", fn: () => createUSGSCanvas(lat, lon, zoom, width, height) },
-        { name: "CartoDB", fn: () => createCartoDBCanvas(lat, lon, zoom, width, height) },
-        { name: "OSM", fn: () => createOSMTileCanvas(lat, lon, zoom, width, height) },
+        { name: "Bing", fn: () => getBingTileUrl(lat, lon, zoom) },
+        { name: "USGS", fn: () => getUSGSTileUrl(lat, lon, zoom) },
+        { name: "OpenStreetMap", fn: () => getOSMTileUrl(lat, lon, zoom) },
     ];
 
     for (const provider of providers) {
         try {
-            console.log(`Trying satellite provider: ${provider.name}...`);
-            const canvas = await provider.fn();
+            console.log(`🔄 Trying ${provider.name}...`);
+            const tileUrl = provider.fn();
+            console.log(`Fetching: ${tileUrl}`);
+            const img = await loadImageFromUrl(tileUrl);
+            setImageryCache(cacheKey, tileUrl);
             console.log(`✅ ${provider.name} succeeded!`);
-            return canvas;
+            return img;
         } catch (error) {
-            console.warn(`❌ ${provider.name} failed:`, error);
+            console.warn(`❌ ${provider.name} failed:`, error.message);
             continue;
         }
     }
 
-    // All providers failed - show placeholder
-    console.warn("All satellite providers failed, showing placeholder");
+    // All providers failed - return placeholder canvas
+    console.warn("All satellite providers failed, returning placeholder");
     return createPlaceholderCanvas(width, height);
 }
 
 /**
- * Create canvas from Bing Maps satellite tiles
- * High quality, good coverage
+ * Get Bing Maps tile URL
  * @private
  */
-async function createBingMapCanvas(lat, lon, zoom, width, height) {
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext('2d');
-
-    try {
-        const [x, y] = latLonToTile(lat, lon, zoom);
-        
-        // Bing Maps tiles are CORS-friendly
-        // Format: http://ecn.dynamic.t7.tiles.virtualearth.net/comp/ch/{quadkey}
-        const quadKey = getTileQuadKey(x, y, zoom);
-        const tileUrl = `https://ecn.t0.tiles.virtualearth.net/tiles/a${quadKey}.jpeg`;
-        
-        console.log("Bing tile URL:", tileUrl);
-        const img = await loadImageFromUrl(tileUrl);
-        ctx.drawImage(img, 0, 0, width, height);
-        return canvas;
-    } catch (error) {
-        throw new Error(`Bing Maps failed: ${error.message}`);
-    }
+function getBingTileUrl(lat, lon, zoom) {
+    const [x, y] = latLonToTile(lat, lon, zoom);
+    const quadKey = getTileQuadKey(x, y, zoom);
+    return `https://ecn.t0.tiles.virtualearth.net/tiles/a${quadKey}.jpeg`;
 }
 
 /**
- * Create canvas from USGS satellite tiles
- * Public domain, excellent coverage for US
+ * Get USGS tile URL
  * @private
  */
-async function createUSGSCanvas(lat, lon, zoom, width, height) {
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext('2d');
-
-    try {
-        const [x, y] = latLonToTile(lat, lon, zoom);
-        
-        // USGS Ortho tiles
-        const tileUrl = `https://basemap.nationalmap.gov/arcgis/rest/services/USGSOrth/MapServer/tile/${zoom}/${y}/${x}`;
-        
-        console.log("USGS tile URL:", tileUrl);
-        const img = await loadImageFromUrl(tileUrl);
-        ctx.drawImage(img, 0, 0, width, height);
-        return canvas;
-    } catch (error) {
-        throw new Error(`USGS failed: ${error.message}`);
-    }
+function getUSGSTileUrl(lat, lon, zoom) {
+    const [x, y] = latLonToTile(lat, lon, zoom);
+    return `https://basemap.nationalmap.gov/arcgis/rest/services/USGSOrth/MapServer/tile/${zoom}/${y}/${x}`;
 }
 
 /**
- * Create canvas from CartoDB satellite tiles
- * Good quality, free tier
+ * Get OpenStreetMap tile URL
  * @private
  */
-async function createCartoDBCanvas(lat, lon, zoom, width, height) {
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext('2d');
-
-    try {
-        const [x, y] = latLonToTile(lat, lon, zoom);
-        
-        // CartoDB Positron tiles (or other variants)
-        const tileUrl = `https://tiles.stadiamaps.com/tiles/stamen_terrain/${zoom}/${x}/${y}.png`;
-        
-        console.log("CartoDB tile URL:", tileUrl);
-        const img = await loadImageFromUrl(tileUrl);
-        ctx.drawImage(img, 0, 0, width, height);
-        return canvas;
-    } catch (error) {
-        throw new Error(`CartoDB failed: ${error.message}`);
-    }
+function getOSMTileUrl(lat, lon, zoom) {
+    const [x, y] = latLonToTile(lat, lon, zoom);
+    return `https://tile.openstreetmap.org/${zoom}/${x}/${y}.png`;
 }
 
-/**
- * Create canvas from OpenStreetMap satellite tiles (Stamen)
- * Fetches multiple tiles and stitches them together
- * @private
- */
-async function createOSMTileCanvas(lat, lon, zoom, width, height) {
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext('2d');
 
-    try {
-        // Get center tile
-        const [centerX, centerY] = latLonToTile(lat, lon, zoom);
-        
-        // Fetch center tile + surrounding tiles
-        const tilesPerSide = 2;
-        let tilesLoaded = 0;
-        const tileSize = 256;
-        
-        for (let dy = -tilesPerSide; dy <= tilesPerSide; dy++) {
-            for (let dx = -tilesPerSide; dx <= tilesPerSide; dx++) {
-                const x = centerX + dx;
-                const y = centerY + dy;
-                
-                // Stamen Satellite tiles (CORS-friendly, no API key)
-                const tileUrl = `https://tile.openstreetmap.org/${zoom}/${x}/${y}.png`;
-                
-                try {
-                    const img = await loadImageFromUrl(tileUrl);
-                    const screenX = (dx + tilesPerSide) * tileSize;
-                    const screenY = (dy + tilesPerSide) * tileSize;
-                    ctx.drawImage(img, screenX, screenY, tileSize, tileSize);
-                    tilesLoaded++;
-                } catch (error) {
-                    // Skip failed tiles
-                    console.warn(`Failed to load tile ${x},${y}:`, error);
-                }
-            }
-        }
-        
-        console.log(`Loaded ${tilesLoaded} tiles for location`);
-        
-        // Crop to requested size
-        if (tilesLoaded > 0) {
-            const croppedCanvas = document.createElement('canvas');
-            croppedCanvas.width = width;
-            croppedCanvas.height = height;
-            const croppedCtx = croppedCanvas.getContext('2d');
-            
-            // Center the cropped area
-            const offsetX = (canvas.width - width) / 2;
-            const offsetY = (canvas.height - height) / 2;
-            croppedCtx.drawImage(canvas, offsetX, offsetY, width, height, 0, 0, width, height);
-            
-            return croppedCanvas;
-        } else {
-            throw new Error("No tiles loaded successfully");
-        }
-    } catch (error) {
-        console.warn("OSM tile canvas creation failed:", error);
-        throw error;
-    }
-}
-
-/**
- * Create a canvas from satellite tiles (Esri fallback)
- * @private
- */
-async function createTileCanvas(lat, lon, zoom, width, height) {
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext('2d');
-
-    try {
-        // Fetch Esri tile (free, no API key needed)
-        const tileUrl = getSatelliteTile(lat, lon, zoom, 'esri');
-        console.log("Fetching satellite tile:", tileUrl);
-        
-        const img = await loadImageFromUrl(tileUrl);
-        ctx.drawImage(img, 0, 0, width, height);
-        return canvas;
-    } catch (error) {
-        console.warn("Could not fetch satellite tile:", error);
-        return createPlaceholderCanvas(width, height);
-    }
-}
 
 /**
  * Create placeholder canvas when imagery unavailable
